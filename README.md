@@ -169,4 +169,4 @@ Structured output means the reviewer can post formatted GitHub comments, integra
 
 [npmjs.com/package/ai-review-claude](https://npmjs.com/package/ai-review-claude)
 
-Built by [arya312](https://github.com/arya312) — looking for SDE-II / ML Engineer roles in London and Europe.
+Built by [arya312](https://github.com/arya312)
