@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { reviewCode, formatReview } from "./review.js";
 import { readFile } from "./diff.js";
 import * as path from "path";

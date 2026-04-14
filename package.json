@@ -1,32 +1,26 @@
 {
-  "name": "ai-code-review",
+  "name": "ai-review-claude",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "review": "tsx src/cli.ts"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/arya312/ai-code-review.git"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "description": "AI-powered code reviewer using Claude",
   "type": "module",
-  "bugs": {
-    "url": "https://github.com/arya312/ai-code-review/issues"
+  "bin": {
+    "ai-review": "./dist/cli.js"
   },
-  "homepage": "https://github.com/arya312/ai-code-review#readme",
-  "devDependencies": {
-    "@types/node": "^25.6.0",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+  "scripts": {
+    "build": "tsc",
+    "review": "tsx src/cli.ts",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": ["ai", "code-review", "claude", "anthropic", "cli"],
+  "author": "aryapandey194",
+  "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.88.0",
-    "dotenv": "^17.4.2"
+    "@anthropic-ai/sdk": "^0.20.0",
+    "dotenv": "^16.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0"
   }
 }
