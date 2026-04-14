@@ -4,57 +4,130 @@ dotenv.config();
 
 const client = new Anthropic();
 
-const TEST_CODE = `
-function calculateTotal(items) {
-  let total = 0;
-  for (let i = 0; i <= items.length; i++) {
-    total += items[i].price;
+// Define the tool schema — this forces Claude to return structured JSON
+const codeReviewTool: Anthropic.Tool = {
+  name: "submit_code_review",
+  description: "Submit a structured code review with specific issues found",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      summary: {
+        type: "string",
+        description: "A 1-2 sentence overall summary of the code quality"
+      },
+      issues: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            severity: {
+              type: "string",
+              enum: ["HIGH", "MEDIUM", "LOW"],
+              description: "Severity of the issue"
+            },
+            function_name: {
+              type: "string",
+              description: "The function or block where the issue was found"
+            },
+            line_hint: {
+              type: "string",
+              description: "A short quote or description of the problematic line"
+            },
+            issue: {
+              type: "string",
+              description: "Clear description of what the problem is"
+            },
+            fix: {
+              type: "string",
+              description: "Specific actionable fix with corrected code if applicable"
+            }
+          },
+          required: ["severity", "function_name", "issue", "fix"]
+        }
+      },
+      score: {
+        type: "number",
+        description: "Overall code quality score from 1-10"
+      }
+    },
+    required: ["summary", "issues", "score"]
   }
-  return total;
+};
+
+export interface ReviewIssue {
+  severity: "HIGH" | "MEDIUM" | "LOW";
+  function_name: string;
+  line_hint?: string;
+  issue: string;
+  fix: string;
 }
 
-function getUserData(userId) {
-  const query = "SELECT * FROM users WHERE id = " + userId;
-  return db.execute(query);
+export interface ReviewResult {
+  summary: string;
+  issues: ReviewIssue[];
+  score: number;
 }
 
-async function fetchData(url) {
-  const response = await fetch(url);
-  const data = response.json();
-  return data;
-}
-`;
-
-async function reviewCode(code: string): Promise<void> {
-  console.log("Sending code to Claude for review...\n");
-
+export async function reviewCode(code: string, filename: string = "code"): Promise<ReviewResult> {
   const message = await client.messages.create({
     model: "claude-sonnet-4-20250514",
-    max_tokens: 1024,
+    max_tokens: 2048,
+    tools: [codeReviewTool],
+    tool_choice: { type: "any" },
     messages: [
       {
         role: "user",
-        content: `You are an expert code reviewer. Review the following code and identify bugs, security issues, and improvements.
+        content: `You are an expert code reviewer. Review this code from file: ${filename}
 
-For each issue found, provide:
-- The line or function where the issue is
-- Severity: HIGH, MEDIUM, or LOW
-- What the issue is
-- How to fix it
+Find ALL bugs, security vulnerabilities, performance issues, and code quality problems.
+Be thorough — this review will be posted as a GitHub PR comment.
 
-Code to review:
-\`\`\`javascript
-${code}
+Code:
 \`\`\`
-
-Be specific and actionable.`,
-      },
-    ],
+${code}
+\`\`\``
+      }
+    ]
   });
 
-  console.log("=== CODE REVIEW RESULTS ===\n");
-  console.log(message.content[0].type === "text" ? message.content[0].text : "");
-  console.log("\n=== END OF REVIEW ===");
+  // Extract the tool use result
+  const toolUse = message.content.find(block => block.type === "tool_use");
+  if (!toolUse || toolUse.type !== "tool_use") {
+    throw new Error("Claude did not return a structured review");
+  }
+
+  return toolUse.input as ReviewResult;
 }
 
-reviewCode(TEST_CODE);
+// Pretty print for terminal
+export function formatReview(result: ReviewResult, filename: string): string {
+  const severityEmoji = { HIGH: "🔴", MEDIUM: "🟡", LOW: "🟢" };
+  const lines: string[] = [];
+
+  lines.push(`\n${"=".repeat(60)}`);
+  lines.push(`CODE REVIEW: ${filename}`);
+  lines.push(`Score: ${result.score}/10`);
+  lines.push(`${"=".repeat(60)}`);
+  lines.push(`\nSummary: ${result.summary}\n`);
+
+  if (result.issues.length === 0) {
+    lines.push("✅ No issues found!");
+  } else {
+    lines.push(`Found ${result.issues.length} issue(s):\n`);
+    result.issues.forEach((issue, i) => {
+      lines.push(`${i + 1}. ${severityEmoji[issue.severity]} [${issue.severity}] ${issue.function_name}`);
+      if (issue.line_hint) lines.push(`   Line: "${issue.line_hint}"`);
+      lines.push(`   Issue: ${issue.issue}`);
+      lines.push(`   Fix: ${issue.fix}`);
+      lines.push("");
+    });
+  }
+
+  const high = result.issues.filter(i => i.severity === "HIGH").length;
+  const medium = result.issues.filter(i => i.severity === "MEDIUM").length;
+  const low = result.issues.filter(i => i.severity === "LOW").length;
+  lines.push(`Summary: ${high} HIGH, ${medium} MEDIUM, ${low} LOW`);
+  lines.push("=".repeat(60));
+
+  return lines.join("\n");
+}
